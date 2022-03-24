@@ -1,0 +1,73 @@
+pipeline {
+    
+    agent {
+        // En los entornos de producción, docker no es la herramienta preferida para trabajar con contenedores
+        // Se trabaja con KUBERNETES
+        //pod {} Muchos contenedores
+        docker {
+            image "maven:3.8.4-jdk-11"
+        }
+    }
+    
+//    tools {
+        // Me asegura que al entorno que vaya, que tenga el maven para ejecutarlo
+//        maven 'mi maven pa compilar'
+//    }
+    
+    triggers {
+        pollSCM '* * * * *'
+    }
+    
+    stages {
+        stage('Compilar') {
+            steps {
+                echo 'Pedir a maven que compile'
+                sh 'mvn compile'
+            }
+        }
+        stage('Pruebas Unitarias') {
+            steps {
+                echo 'Pedir a maven que ejecute las pruebas unitarias'
+                sh 'mvn test'
+            }
+            post {
+                always{
+                    echo 'Guardar los informes de pruebas'
+                    junit allowEmptyResults: true, testResults: 'target/surefire-reports/*.xml'
+                }
+            }
+        }
+        stage('Pruebas Estáticas') {
+            steps {
+//                withSonarQubeEnv('sonarqube'){
+    
+                    echo 'Pedir a maven que mande el proyecto a SonarQube'
+//                    withCredentials([string(credentialsId: 'miCredencialDeSonarQube', variable: 'CREDENCIAL_SQ')]) {
+                        sh '''
+                            mvn sonar:sonar \
+                                -Dsonar.projectKey=proyectoMaven \
+                                -Dsonar.host.url=http://34.254.60.234:9000/ \
+                                -Dsonar.login=92042470d070a6478ad7341a002981e2c9bf0666
+                        '''
+//                    }
+//                }
+//                timeout(time: 10, unit: 'MINUTES'){
+//                    waitForQualityGate abortPipeline: true
+//                }
+                
+            }
+        }
+        stage('Empaquetar') {
+            steps {
+                echo 'Pedir a maven que empaquete'
+                sh 'mvn package'
+            }
+            post {
+                success{
+                    echo 'Guardar el archivo WAR'
+                    archiveArtifacts artifacts: 'target/*.war', followSymlinks: false
+                }
+            }
+        }
+    }
+}

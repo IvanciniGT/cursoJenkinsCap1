@@ -1,0 +1,40 @@
+ // Sintaxis scriptted
+
+properties(
+    pipelineTriggers([
+        pollSCM('* * * * *')
+    ]),
+    parameters([
+        booleanParam(description: 'Quiere hacer pruebas de HA?', name: 'PROBAR_HA'),
+        choice()choices: ['chrome', 'firefox'], description: 'Qué navegador usar para las pruebas de UI básicas', name: 'NAVEGADOR_PRUEBAS_BASICAS')
+    ])
+)
+node {
+    try{
+        stage('Compilación'){
+            echo 'Pedir a maven que compile'
+            sh 'mvn compile'
+        }
+    }catch(exc){
+            echo 'Tarea de rescate de la compilación'
+    }finally{  
+        stage('Compilación'){
+            echo 'Pedir a maven que ejecute las pruebas unitarias'
+            sh 'mvn test'
+        }
+    }
+    if (this.params.pruebas_unitarias.getOrDefault('false')=='true'){
+        stage('Informe de pruebas'){
+            echo 'Guardar los informes de pruebas'
+            junit allowEmptyResults: true, testResults: 'target/surefire-reports/*.xml'
+        }
+        stage('Empaquetado'){
+            echo 'Pedir a maven que empaquete'
+            sh 'mvn package'
+        }
+    }
+    stage('Guardar artefacto'){
+        echo 'Guardar el archivo WAR'
+        archiveArtifacts artifacts: 'target/*.war', followSymlinks: false
+    }
+}
